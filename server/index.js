@@ -1,5 +1,5 @@
-import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
+const { ApolloServer } = require("@apollo/server");
+const { startStandaloneServer } = require("@apollo/server/standalone");
 
 const users = [
 	{
@@ -140,9 +140,10 @@ const resolvers = {
 const server = new ApolloServer({
 	typeDefs,
 	resolvers,
-});
-
-const { url } = await startStandaloneServer(server, {
+  });
+  
+  startStandaloneServer(server, {
 	listen: { port: 3000 },
-});
-console.log(`🚀 Server ready at ${url}`);
+  }).then(({ url }) => {
+	console.log(`🚀  Server ready at: ${url}`);
+  });
