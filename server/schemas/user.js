@@ -1,4 +1,5 @@
-const { hashPassword } = require('../helpers/bcrypt');
+const { hashPassword, comparePassword } = require('../helpers/bcrypt');
+const { signToken } = require('../helpers/jwt');
 const User = require('../models/User');
 
 const users = [
@@ -29,6 +30,7 @@ const userTypeDefs = `
         addUser(name: String!, username: String!, email: String!, password: String!): User
         updateUser(id: ID!, name: String, username: String, email: String, password: String): User
         deleteUser(id: ID!): String
+        loginUser(username: String!, password: String!): AuthPayload
     }
 `;
 
@@ -39,14 +41,22 @@ const userResolvers = {
     },
 
     Mutation: {
-        addUser: (_, { name, username, email, password }) => {
+        addUser: async (_, { name, username, email, password }) => {
+            const hashedPassword = await hashPassword(password);
             const newUser = new User(
                 String(users.length + 1),
                 name,
                 username,
                 email,
-                hashPassword(password),
+                hashedPassword,
             );
+
+            if (users.find(user => user.username === newUser.username)) {
+                throw new Error('Username already exists');
+            } else if (users.find(user => user.email === newUser.email)) {
+                throw new Error('Email already exists');
+            }
+
             users.push(newUser);
             return newUser;
         },
@@ -71,7 +81,22 @@ const userResolvers = {
             
             users.splice(userIndex, 1);
             return 'User deleted';
-        }
+        },
+
+        loginUser: async (_, { username, password }) => {
+            const user = users.find(user => user.username === username);
+            if (!user) throw new Error('User not found');
+            
+            const isPasswordMatch = await comparePassword(password, user.password);
+            if (!isPasswordMatch) throw new Error('Invalid password');
+            
+            const access_token = signToken({id: user._id, username: user.username});
+            return {
+                user,
+                token: access_token,
+            };
+        },
+
     },
 };
 
