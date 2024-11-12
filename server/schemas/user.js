@@ -1,3 +1,4 @@
+const { hashPassword } = require('../helpers/bcrypt');
 const User = require('../models/User');
 
 const users = [
@@ -25,7 +26,7 @@ const userTypeDefs = `
     }
 
     type Mutation {
-        createUser(name: String!, username: String!, email: String!, password: String!): User
+        addUser(name: String!, username: String!, email: String!, password: String!): User
         updateUser(id: ID!, name: String, username: String, email: String, password: String): User
         deleteUser(id: ID!): String
     }
@@ -36,10 +37,16 @@ const userResolvers = {
         getUser: (_, { id }) => users.find(user => user._id === id),
         getUsers: () => users,
     },
-    
+
     Mutation: {
-        createUser: (_, { name, username, email, password }) => {
-            const newUser = new User(String(users.length + 1), name, username, email, password);
+        addUser: (_, { name, username, email, password }) => {
+            const newUser = new User(
+                String(users.length + 1),
+                name,
+                username,
+                email,
+                hashPassword(password),
+            );
             users.push(newUser);
             return newUser;
         },
