@@ -2,6 +2,7 @@ const { hashPassword, comparePassword } = require("../helpers/bcrypt");
 const { signToken } = require("../helpers/jwt");
 const User = require("../models/User");
 const { connectToDB } = require("../config/mongodb");
+const { ObjectId } = require("mongodb");
 
 const userTypeDefs = `
     type User {
@@ -83,22 +84,42 @@ const userResolvers = {
 				throw new Error("Failed to create user");
 			}
 		},
-        loginUser: async (_, { username, password }) => {
-            try {
-                const db = await connectToDB();
-                const user = await db.collection('User').findOne({ username });
-                if (!user) throw new Error('User not found');
-                
-                const isPasswordValid = await comparePassword(password, user.password);
-                if (!isPasswordValid) throw new Error('Invalid password');
-                
-                const token = signToken({ _id: user._id, username: user.username });
-                return { user, token };
-            } catch (error) {
-                console.log(error);
-                throw new Error('Failed to login');
-            }
-        },
+		loginUser: async (_, { username, password }) => {
+			try {
+				const db = await connectToDB();
+				const user = await db.collection("User").findOne({ username });
+				if (!user) throw new Error("User not found");
+
+				const isPasswordValid = await comparePassword(password, user.password);
+				if (!isPasswordValid) throw new Error("Invalid password");
+
+				const token = signToken({ _id: user._id, username: user.username });
+				return { user, token };
+			} catch (error) {
+				console.log(error);
+				throw new Error("Failed to login");
+			}
+		},
+        
+		searchUser: async (_, { query }) => {
+			try {
+				const db = await connectToDB();
+				const users = await db
+					.collection("User")
+					.find({
+						$or: [
+							{ name: { $text: { $search: query } }},
+							{ username: { $text: { $search: query } }},
+						],
+					})
+					.toArray();
+
+				return users;
+			} catch (error) {
+				console.log(error);
+				throw new Error("Failed to search users");
+			}
+		},
         
 	},
 };
