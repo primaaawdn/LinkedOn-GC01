@@ -50,6 +50,51 @@ class Post {
             throw new Error("Failed to create post");
         }
     }
+    static async getComments(postId){
+        try {
+            const db = await connectToDB();
+            const post = await db.collection("Post").findOne({ _id: new ObjectId(postId) });
+            if (!post) throw new Error("Post not found");
+            return post.comments;
+        } catch (error) {
+            throw new Error("Failed to fetch comments");
+        }
+    }
+    static async likePost({ postId, username }){
+        try {
+            const db = await connectToDB();
+            const like = {
+                username,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }
+            await db.collection("Post").updateOne(
+                { _id: new ObjectId(postId) },
+                { $push: { likes: like } }
+            );
+            return like;
+        } catch (error) {
+            throw new Error("Failed to like post");
+        }
+    }
+    static async commentPost({ postId, content, username }){
+        try {
+            const db = await connectToDB();
+            const newComment = {
+                content,
+                username,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }
+            await db.collection("Post").updateOne(
+                { _id: new ObjectId(postId) },
+                { $push: { comments: newComment } }
+            );
+            return newComment;
+        } catch (error) {
+            throw new Error("Failed to comment post");
+        }
+    }
 }
 
 module.exports = Post;

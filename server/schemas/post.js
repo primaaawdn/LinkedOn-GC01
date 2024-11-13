@@ -29,12 +29,15 @@ const postTypeDefs = `#graphql
     type Query {
         getPosts: [Post]
         getPostById(id: ID!): Post
+		getComments(postId: ID!): [Comment]
     }
 
     type Mutation {
         addPost(content: String!, tags: [String], imgUrl: String, authorId: ID!): Post
         updatePost(id: ID!, content: String, tags: [String], imgUrl: String): Post
         deletePost(id: ID!): String
+		commentPost(postId: ID!, content: String!, username: String!): Comment
+		likePost(postId: ID!, username: String!): Like
     }
 `;
 
@@ -55,6 +58,14 @@ const postResolvers = {
 				console.log("🚀 ~ getPostById: ~ error:", error)
 				throw new Error("Post not found");
 			}
+		},
+		getComments: async (_, { postId }) => {
+			try {
+				return await Post.getComments(postId);
+			} catch (error) {
+				console.log("🚀 ~ getComments: ~ error:", error)
+				throw new Error("Failed to fetch comments");
+			}
 		}
 	},
 
@@ -67,6 +78,23 @@ const postResolvers = {
 				throw new Error("Failed to create post");
 			}
 		},
+		commentPost: async (_, { postId, content, username }) => {
+			try {
+				return await Post.commentPost({ postId, content, username });
+			} catch (error) {
+				console.log("🚀 ~ commentPost: ~ error:", error)
+				throw new Error("Failed to comment post");
+			}
+		},
+		
+		likePost: async (_, { postId, username }) => {
+			try {
+				return await Post.likePost({ postId, username });
+			} catch (error) {
+				console.log("🚀 ~ likePost: ~ error:", error)
+				throw new Error("Failed to like post");
+			}
+		}
 	},
 };
 
