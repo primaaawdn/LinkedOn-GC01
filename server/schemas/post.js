@@ -59,7 +59,14 @@ const postResolvers = {
 	},
 
 	Mutation: {
-		
+		addPost: async (_, { content, tags, imgUrl, authorId }) => {
+			try {
+				return await Post.createPost({ content, tags, imgUrl, authorId });
+			} catch (error) {
+				console.log("🚀 ~ addPost: ~ error:", error)
+				throw new Error("Failed to create post");
+			}
+		},
 	},
 };
 
