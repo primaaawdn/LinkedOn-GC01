@@ -1,15 +1,27 @@
+const { connectToDB } = require("../config/mongodb");
+const { ObjectId } = require("mongodb");
 class Post {
-    constructor(_id, content, tags, imgUrl, authorId) {
-        this._id = _id;
-        this.content = content;
-        this.tags = tags;
-        this.imgUrl = imgUrl;
-        this.authorId = authorId;
-        this.comments = [];
-        this.likes = [];
-        this.createdAt = new Date().toISOString();
-        this.updatedAt = new Date().toISOString();
-    }
+	static async findAll() {
+		try {
+			const db = await connectToDB();
+			const posts = await db.collection("Post").find().toArray();
+			return posts;
+		} catch (error) {
+			throw new Error("Failed to fetch posts");
+		}
+	}
+	static async findById(id) {
+		try {
+			const db = await connectToDB();
+            const postId = new ObjectId(id);
+			const post = await db.collection("Post").findOne({ _id: postId });
+			if (!post) throw new Error("Post not found");
+			return post;
+		} catch (error) {            
+			console.log("🚀 ~ Post ~ findById ~ error:", error)
+			throw new Error("Post not found");
+		}
+	}
 }
 
 module.exports = Post;

@@ -1,10 +1,6 @@
 const Post = require("../models/Post");
 
-const posts = [
-	new Post(),
-];
-
-const postTypeDefs = `
+const postTypeDefs = `#graphql
     type Post {
         _id: ID!
         content: String!
@@ -36,7 +32,7 @@ const postTypeDefs = `
     }
 
     type Mutation {
-        createPost(content: String!, tags: [String], imgUrl: String, authorId: ID!): Post
+        addPost(content: String!, tags: [String], imgUrl: String, authorId: ID!): Post
         updatePost(id: ID!, content: String, tags: [String], imgUrl: String): Post
         deletePost(id: ID!): String
     }
@@ -44,41 +40,26 @@ const postTypeDefs = `
 
 const postResolvers = {
 	Query: {
-		getPosts: () => posts,
-		getPostById: (_, { id }) => posts.find((post) => post._id === id),
+		getPosts: async () => {
+            try {
+                return await Post.findAll();
+            } catch (error) {
+                console.log("🚀 ~ getPosts: ~ error:", error)
+                throw new Error("Failed to fetch posts");
+            }
+		},
+		getPostById: async (_, { id }) => {
+			try {
+				return await Post.findById(id);
+			} catch (error) {
+				console.log("🚀 ~ getPostById: ~ error:", error)
+				throw new Error("Post not found");
+			}
+		}
 	},
-    
+
 	Mutation: {
-		createPost: (_, { content, tags, imgUrl, authorId }) => {
-            const newPost = new Post(
-                String(posts.length + 1),
-                content,
-                tags,
-                imgUrl,
-                authorId
-            );
-            posts.push(newPost);
-            return newPost;
-        },
-
-        updatePost: (_, { id, content, tags, imgUrl }) => {
-            const postIndex = posts.findIndex(post => post._id === id);
-            if (postIndex === -1) throw new Error('Post not found');
-            
-            const post = posts[postIndex];
-            if (content) post.content = content;
-            if (tags) post.tags = tags;
-            if (imgUrl) post.imgUrl = imgUrl;
-            return post;
-        },
-
-        deletePost: (_, { id }) => {
-            const postIndex = posts.findIndex(post => post._id === id);
-            if (postIndex === -1) throw new Error('Post not found');
-            
-            posts.splice(postIndex, 1);
-            return 'Post deleted';
-        }
+		
 	},
 };
 
