@@ -1,8 +1,4 @@
-const { hashPassword, comparePassword } = require("../helpers/bcrypt");
-const { signToken } = require("../helpers/jwt");
 const User = require("../models/User");
-const { connectToDB } = require("../config/mongodb");
-const { ObjectId } = require("mongodb");
 
 const userTypeDefs = `
     type User {
@@ -19,8 +15,8 @@ const userTypeDefs = `
     }
 
     type Query {
-        getUser(id: ID!): User
         getUsers: [User]
+        getUser(id: ID!): User
         searchUser(query: String!): [User]
     }
 
@@ -35,112 +31,67 @@ const userTypeDefs = `
 
 const userResolvers = {
 	Query: {
-		getUser: async () => {
-			try {
-				const db = await connectToDB();
-				const user = await db.collection("User").findOne({ _id: ObjectId(id) });
-				return user;
-			} catch (error) {
-				throw new Error("User not found");
-			}
-		},
-
 		getUsers: async () => {
-			try {
-				const db = await connectToDB();
-				const users = await db.collection("User").find().toArray();
-				return users;
-			} catch (error) {
-				throw new Error("Failed to fetch users");
-			}
+            try {
+                return await User.findAll();
+            } catch (error) {
+                console.log("🚀 ~ getUsers: ~ error:", error)
+                throw new Error("Failed to fetch users");
+            }
 		},
-
-		searchUser: async (_, { query }) => {
-			try {
-				const db = await connectToDB();
-				const users = await db
-					.collection("User")
-					.find({
-						$or: [
-							{ name: { $regex: query, $options: "i" } },
-							{ username: { $regex: query, $options: "i" } },
-						],
-					})
-					.toArray();
-				return users;
-			} catch (error) {
-				console.log(error);
-				throw new Error("Failed to search users");
-			}
-		},
+		getUser: async (_, { id }) => {
+            try {
+                return await User.findById(id);
+            } catch (error) {
+                console.log("🚀 ~ getUser: ~ error:", error)
+                throw new Error("User not found");
+            }
+        },
+        
+        searchUser: async (_, { query }) => {
+            try {
+                return await User.search(query);
+            } catch (error) {
+                console.log("🚀 ~ searchUser: ~ error:", error)
+                throw new Error("Failed to search user");
+            }
+        }
 	},
 
 	Mutation: {
 		addUser: async (_, { name, username, email, password }) => {
 			try {
-				const db = await connectToDB();
-				const existingUser = await db
-					.collection("User")
-					.findOne({ $or: [{ username }, { email }] });
-
-				if (existingUser) throw new Error("User already exists");
-
-				const hashedPassword = await hashPassword(password);
-				const newUser = await db.collection("User").insertOne({
+				const newUser = await User.createUser({
 					name,
 					username,
 					email,
-					password: hashedPassword,
+					password,
 				});
-				return {
-					_id: newUser.insertedId,
-					name,
-					username,
-					email,
-					password: hashedPassword,
-				};
+				return newUser;
 			} catch (error) {
-				console.log(error);
 				throw new Error("Failed to create user");
 			}
 		},
 
 		loginUser: async (_, { username, password }) => {
-			try {
-				const db = await connectToDB();
-				const user = await db.collection("User").findOne({ username });
-				if (!user) throw new Error("User not found");
-
-				const isPasswordValid = await comparePassword(password, user.password);
-				if (!isPasswordValid) throw new Error("Invalid password");
-
-				const token = signToken({ _id: user._id, username: user.username });
-				return { user, token };
-			} catch (error) {
-				console.log(error);
-				throw new Error("Failed to login");
-			}
-		},
-
-		// searchUser: async (_, { query }) => {
-		// 	try {
-		// 		const db = await connectToDB();
-		// 		const users = await db
-		// 			.collection("User")
-		// 			.find({
-		// 				$or: [
-		// 					{ name: { $text: { $search: query } }},
-		// 					{ username: { $text: { $search: query } }},
-		// 				],
-		// 			})
-		// 			.toArray();
-
-		// 		return users;
-		// 	} catch (error) {
-		// 		console.log(error);
-		// 		throw new Error("Failed to search users");
-		// 	}
-		// },
+            try {
+                const user = await User.findByUsername(username);
+                if (!user) throw new Error("User not found");
+        
+                const isPasswordValid = await User.validatePassword(
+                    user.password,
+                    password
+                );
+                if (!isPasswordValid) throw new Error("Invalid password");
+        
+                const token = await User.generateToken(user);
+                return { user, token };
+            } catch (error) {
+                console.log("🚀 ~ loginUser: ~ error:", error);
+                throw new Error("Failed to login");
+            }
+        },
+        
 	},
 };
 

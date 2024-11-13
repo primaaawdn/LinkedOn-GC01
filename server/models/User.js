@@ -15,16 +15,29 @@ class User {
 	}
 
 	static async findById(id) {
-		try {
-			const db = await connectToDB();
-			const user = await db.collection("User").findOne({ _id: ObjectId(id) });
-			if (!user) throw new Error("User not found");
-			return user;
-		} catch (error) {
-			throw new Error("User not found");
-		}
-	}
-
+        try {
+            const db = await connectToDB();
+            const userId = new ObjectId(id); 
+            const user = await db.collection("User").findOne({ _id: userId });
+            if (!user) throw new Error("User not found");
+            return user;
+        } catch (error) {
+            console.log("Error in findById:", error);
+            throw new Error("User not found");
+        }
+    }    
+    
+    static async findByUsername(username) {
+        try {
+            const db = await connectToDB();
+            const user = await db.collection("User").findOne({ username });
+            if (!user) throw new Error("User not found");
+            return user;
+        } catch (error) {
+            throw new Error("User not found");
+        }
+    }
+    
 	static async createUser({ name, username, email, password }) {
 		try {
 			const db = await connectToDB();
@@ -47,6 +60,7 @@ class User {
 				name,
 				username,
 				email,
+                password: hashedPassword,
 			};
 		} catch (error) {
 			throw new Error("Failed to create user");
@@ -81,6 +95,25 @@ class User {
 			throw new Error("Failed to delete user");
 		}
 	}
+
+    static async search(query){
+        try {
+            const db = await connectToDB();
+            const users = await db
+                .collection("User")
+                .find({
+                    $or: [
+                        { name: { $regex: query, $options: "i" } },
+                        { username: { $regex: query, $options: "i" } },
+                    ],
+                })
+                .toArray();
+            return users;
+        } catch (error) {
+            console.log(error);
+            throw new Error("Failed to search users");
+        }
+    }
 
 	static async validatePassword(storedPassword, inputPassword) {
 		return await comparePassword(inputPassword, storedPassword);
