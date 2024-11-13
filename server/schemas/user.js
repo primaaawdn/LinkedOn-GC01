@@ -21,12 +21,13 @@ const userTypeDefs = `
     type Query {
         getUser(id: ID!): User
         getUsers: [User]
+        searchUser(query: String!): [User]
     }
 
     type Mutation {
         addUser(name: String!, username: String!, email: String!, password: String!): User
         loginUser(username: String!, password: String!): AuthPayload
-        searchUser(query: String!): [User]
+        followUser(userId: ID!, followId: ID!): String
         updateUser(id: ID!, name: String, username: String, email: String, password: String): User
         deleteUser(id: ID!): String
     }
@@ -51,6 +52,25 @@ const userResolvers = {
 				return users;
 			} catch (error) {
 				throw new Error("Failed to fetch users");
+			}
+		},
+
+		searchUser: async (_, { query }) => {
+			try {
+				const db = await connectToDB();
+				const users = await db
+					.collection("User")
+					.find({
+						$or: [
+							{ name: { $regex: query, $options: "i" } },
+							{ username: { $regex: query, $options: "i" } },
+						],
+					})
+					.toArray();
+				return users;
+			} catch (error) {
+				console.log(error);
+				throw new Error("Failed to search users");
 			}
 		},
 	},
@@ -84,6 +104,7 @@ const userResolvers = {
 				throw new Error("Failed to create user");
 			}
 		},
+
 		loginUser: async (_, { username, password }) => {
 			try {
 				const db = await connectToDB();
@@ -100,27 +121,26 @@ const userResolvers = {
 				throw new Error("Failed to login");
 			}
 		},
-        
-		searchUser: async (_, { query }) => {
-			try {
-				const db = await connectToDB();
-				const users = await db
-					.collection("User")
-					.find({
-						$or: [
-							{ name: { $text: { $search: query } }},
-							{ username: { $text: { $search: query } }},
-						],
-					})
-					.toArray();
 
-				return users;
-			} catch (error) {
-				console.log(error);
-				throw new Error("Failed to search users");
-			}
-		},
-        
+		// searchUser: async (_, { query }) => {
+		// 	try {
+		// 		const db = await connectToDB();
+		// 		const users = await db
+		// 			.collection("User")
+		// 			.find({
+		// 				$or: [
+		// 					{ name: { $text: { $search: query } }},
+		// 					{ username: { $text: { $search: query } }},
+		// 				],
+		// 			})
+		// 			.toArray();
+
+		// 		return users;
+		// 	} catch (error) {
+		// 		console.log(error);
+		// 		throw new Error("Failed to search users");
+		// 	}
+		// },
 	},
 };
 
