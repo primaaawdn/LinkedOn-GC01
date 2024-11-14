@@ -3,8 +3,7 @@ const { startStandaloneServer } = require("@apollo/server/standalone");
 const { userTypeDefs, userResolvers } = require("./schemas/user");
 const { postTypeDefs, postResolvers } = require("./schemas/post");
 const { connectToDB, closeConnection } = require("./config/mongodb");
-require('dotenv').config();
-
+require("dotenv").config();
 
 const typeDefs = `
     ${userTypeDefs}

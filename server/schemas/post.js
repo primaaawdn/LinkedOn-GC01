@@ -1,4 +1,5 @@
 const Post = require("../models/Post");
+const redis = require("../config/redis");
 
 const postTypeDefs = `#graphql
     type Post {
@@ -44,18 +45,34 @@ const postTypeDefs = `#graphql
 const postResolvers = {
 	Query: {
 		getPosts: async () => {
-            try {
-                return await Post.findAll();
-            } catch (error) {
-                console.log("🚀 ~ getPosts: ~ error:", error)
-                throw new Error("Failed to fetch posts");
-            }
+			try {
+				const postsRedis = await redis.get("posts");
+				if (postsRedis) {
+					console.log("Data Redis found:", JSON.parse(postsRedis));
+					return JSON.parse(postsRedis);
+				}
+
+				const posts = await Post.findAll();
+				redis.set("posts", JSON.stringify(posts));
+				return posts;
+			} catch (error) {
+				console.log("🚀 ~ getPosts: ~ error:", error);
+				throw new Error("Failed to fetch posts");
+			}
 		},
 		getPostById: async (_, { id }) => {
 			try {
-				return await Post.findById(id);
+				const postRedis = await redis.get("post");
+				if (postRedis) {
+					console.log("Data Redis found:", JSON.parse(postRedis));
+					return JSON.parse(postRedis);
+				}
+
+				const post = await Post.findById(id);
+				redis.set("post", JSON.stringify(post));
+				return post;
 			} catch (error) {
-				console.log("🚀 ~ getPostById: ~ error:", error)
+				console.log("🚀 ~ getPostById: ~ error:", error);
 				throw new Error("Post not found");
 			}
 		},
@@ -63,10 +80,10 @@ const postResolvers = {
 			try {
 				return await Post.getComments(postId);
 			} catch (error) {
-				console.log("🚀 ~ getComments: ~ error:", error)
+				console.log("🚀 ~ getComments: ~ error:", error);
 				throw new Error("Failed to fetch comments");
 			}
-		}
+		},
 	},
 
 	Mutation: {
@@ -74,7 +91,7 @@ const postResolvers = {
 			try {
 				return await Post.createPost({ content, tags, imgUrl, authorId });
 			} catch (error) {
-				console.log("🚀 ~ addPost: ~ error:", error)
+				console.log("🚀 ~ addPost: ~ error:", error);
 				throw new Error("Failed to create post");
 			}
 		},
@@ -82,19 +99,19 @@ const postResolvers = {
 			try {
 				return await Post.commentPost({ postId, content, username });
 			} catch (error) {
-				console.log("🚀 ~ commentPost: ~ error:", error)
+				console.log("🚀 ~ commentPost: ~ error:", error);
 				throw new Error("Failed to comment post");
 			}
 		},
-		
+
 		likePost: async (_, { postId, username }) => {
 			try {
 				return await Post.likePost({ postId, username });
 			} catch (error) {
-				console.log("🚀 ~ likePost: ~ error:", error)
+				console.log("🚀 ~ likePost: ~ error:", error);
 				throw new Error("Failed to like post");
 			}
-		}
+		},
 	},
 };
 
