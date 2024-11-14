@@ -62,14 +62,7 @@ const postResolvers = {
 		},
 		getPostById: async (_, { id }) => {
 			try {
-				const postRedis = await redis.get("post");
-				if (postRedis) {
-					console.log("Data Redis found:", JSON.parse(postRedis));
-					return JSON.parse(postRedis);
-				}
-
 				const post = await Post.findById(id);
-				redis.set("post", JSON.stringify(post));
 				return post;
 			} catch (error) {
 				console.log("🚀 ~ getPostById: ~ error:", error);
@@ -89,7 +82,15 @@ const postResolvers = {
 	Mutation: {
 		addPost: async (_, { content, tags, imgUrl, authorId }) => {
 			try {
-				return await Post.createPost({ content, tags, imgUrl, authorId });
+				const newPost = await Post.createPost({
+					content,
+					tags,
+					imgUrl,
+					authorId,
+				});
+				redis.del("posts");
+				// console.log("Data Redis deleted");
+				return newPost;
 			} catch (error) {
 				console.log("🚀 ~ addPost: ~ error:", error);
 				throw new Error("Failed to create post");
