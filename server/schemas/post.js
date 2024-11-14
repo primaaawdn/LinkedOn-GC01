@@ -1,5 +1,6 @@
 const Post = require("../models/Post");
 const redis = require("../config/redis");
+const { ObjectId } = require("mongodb");
 
 const postTypeDefs = `#graphql
     type Post {
@@ -12,6 +13,7 @@ const postTypeDefs = `#graphql
         likes: [Like]
         createdAt: String
         updatedAt: String
+		author: User
     }
 
     type Comment {
@@ -62,7 +64,7 @@ const postResolvers = {
 		},
 		getPostById: async (_, { id }) => {
 			try {
-				const post = await Post.findById(id);
+				const post = await Post.findById(new ObjectId(id));
 				return post;
 			} catch (error) {
 				console.log("🚀 ~ getPostById: ~ error:", error);

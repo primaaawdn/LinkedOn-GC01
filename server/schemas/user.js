@@ -6,7 +6,7 @@ const userTypeDefs = `
         name: String!
         username: String!
         email: String!
-        password: String!
+        password: String
     }
 
     type AuthPayload {
