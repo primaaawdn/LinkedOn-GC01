@@ -3,7 +3,10 @@ const { startStandaloneServer } = require("@apollo/server/standalone");
 const { userTypeDefs, userResolvers } = require("./schemas/user");
 const { postTypeDefs, postResolvers } = require("./schemas/post");
 const { connectToDB, closeConnection } = require("./config/mongodb");
+const { verifyToken } = require("./helpers/jwt");
 require("dotenv").config();
+require('./config/ngrok');
+
 
 const typeDefs = `
     ${userTypeDefs}
@@ -30,10 +33,21 @@ async function startServer() {
 			resolvers,
 		});
 
-		const { url } = await startStandaloneServer(server, {
+		startStandaloneServer(server, {
 			listen: { port: 3000 },
+			context: async ({ req }) => {
+				return {
+					auth: () => {
+						const token = req.headers.authorization;
+						if (!token) throw new Error("Unauthorized");
+						const user = verifyToken(token);
+						return user;
+					},
+				};
+			},
+		}).then(({ url }) => {
+			console.log(`🚀  Server ready at: ${url}`);
 		});
-		console.log(`🚀  Server ready at: ${url}`);
 
 		process.on("SIGINT", async () => {
 			await closeConnection();
