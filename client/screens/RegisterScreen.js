@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
 	View,
 	Text,
@@ -7,24 +7,63 @@ import {
 	StyleSheet,
 	Alert,
 } from "react-native";
+import { gql, useMutation } from "@apollo/client";
+
+const userRegister = gql`
+	mutation AddUser(
+		$name: String!
+		$username: String!
+		$email: String!
+		$password: String!
+	) {
+		addUser(
+			name: $name
+			username: $username
+			email: $email
+			password: $password
+		) {
+			_id
+			name
+			username
+			email
+			password
+		}
+	}
+`;
 
 const RegisterScreen = ({ navigation }) => {
 	const [name, setName] = useState("");
+	const [username, setUsername] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 
+	const [registerUser, { loading, error }] = useMutation(userRegister, {
+		onCompleted: () => {
+			Alert.alert("Success", "Registration successful!", [
+				{
+					text: "OK",
+					onPress: () => navigation.replace("Login"),
+				},
+			]);
+		},
+		onError: (error) => {
+			console.log("🚀 ~ RegisterScreen ~ error:", error.message)			
+			Alert.alert("Error", error.message);
+		},
+	});
+
 	const handleRegister = () => {
-		if (name && email && password) {
-			Alert.alert("Registration Successful");
-			navigation.navigate("Login");
+		if (name && username && email && password) {
+			registerUser({
+				variables: { name, username, email, password },
+			});
 		} else {
-			Alert.alert("Registration Failed", "Please fill in all fields");
+			Alert.alert("Error", "All fields are required.");
 		}
 	};
 
 	return (
 		<View style={styles.container}>
-			
 			<Text style={styles.title}>Join LinkedOn</Text>
 
 			<TextInput
@@ -33,6 +72,14 @@ const RegisterScreen = ({ navigation }) => {
 				placeholderTextColor="#B0C4DE"
 				value={name}
 				onChangeText={setName}
+			/>
+
+			<TextInput
+				style={styles.input}
+				placeholder="Username"
+				placeholderTextColor="#B0C4DE"
+				value={username}
+				onChangeText={setUsername}
 			/>
 
 			<TextInput
@@ -59,7 +106,7 @@ const RegisterScreen = ({ navigation }) => {
 
 			<Text style={styles.footerText}>
 				Already a member?
-				<Text style={styles.link} onPress={() => navigation.navigate("Login")}>
+				<Text style={styles.link} onPress={() => navigation.replace("Login")}>
 					{" "}
 					Sign in
 				</Text>
@@ -75,11 +122,6 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 		paddingHorizontal: 20,
-	},
-	logo: {
-		width: 150,
-		height: 50,
-		marginBottom: 20,
 	},
 	title: {
 		fontSize: 24,
