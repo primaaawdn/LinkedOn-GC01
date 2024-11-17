@@ -1,3 +1,6 @@
+if (process.env.NODE_ENV !== "production") {
+	require("dotenv").config();
+}
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const { userTypeDefs, userResolvers } = require("./schemas/user");
@@ -5,9 +8,7 @@ const { postTypeDefs, postResolvers } = require("./schemas/post");
 const { followTypeDefs, followResolvers } = require("./schemas/follow");
 const { connectToDB, closeConnection } = require("./config/mongodb");
 const { verifyToken } = require("./helpers/jwt");
-require("dotenv").config();
-require('./config/ngrok');
-
+require("./config/ngrok");
 
 const typeDefs = `
     ${userTypeDefs}
@@ -38,14 +39,14 @@ async function startServer() {
 		});
 
 		startStandaloneServer(server, {
-			listen: { port: 3000 },
+			listen: { port: process.env.PORT || 3000 },
 			context: async ({ req }) => {
 				return {
 					auth: () => {
 						const token = req.headers.authorization;
 						if (!req.headers.authorization) throw new Error("Unauthorized");
 						console.log("Token:", token);
-						
+
 						const user = verifyToken(token);
 						return user;
 					},
