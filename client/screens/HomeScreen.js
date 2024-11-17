@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -6,10 +6,12 @@ import {
 	Image,
 	TouchableOpacity,
 	FlatList,
+	ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, gql } from "@apollo/client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 const GET_POSTS = gql`
 	query GetPosts {
@@ -38,34 +40,45 @@ const GET_POSTS = gql`
 		}
 	}
 `;
-
 const GET_USER_PROFILE = gql`
 	query GetUser($getUserId: ID!) {
 		getUser(id: $getUserId) {
 			_id
-			name
 			username
-			email
-			password
-			image
-			occupation
+			name
 			bio
+			email
+			occupation
+			image
 		}
 	}
 `;
-
 const HomeScreen = ({ navigation }) => {
 	const [userId, setUserId] = useState(null);
 
-	const fetchUserId = async () => {
-		const id = await AsyncStorage.getItem("userId");
-		console.log("Fetched userId:", id);
-		setUserId(id);
-	};
-
-	if (userId === null) {
+	useEffect(() => {
+		const fetchUserId = async () => {
+			try {
+				const storedUserData = await SecureStore.getItemAsync("userData");
+				const parsedUserData = storedUserData
+					? JSON.parse(storedUserData)
+					: null;
+	
+				if (parsedUserData && parsedUserData._id) {
+					setUserId(parsedUserData._id);
+				} else {
+					console.error("User data not found in AsyncStorage");
+				}
+			} catch (error) {
+				console.error("Error fetching user data from AsyncStorage:", error);
+			}
+		};
+	
 		fetchUserId();
-	}
+	}, []);
+	
+	console.log("User ID dari home:", userId);
+	
 
 	const {
 		data: userData,
@@ -83,12 +96,79 @@ const HomeScreen = ({ navigation }) => {
 	} = useQuery(GET_POSTS);
 
 	if (userLoading || postsLoading) return <Text>Loading...</Text>;
-	if (userError || postsError) return <Text>Error loading data</Text>;
+	if (userError || postsError) {
+		console.error("User Error:", userError?.message);
+		console.error("Posts Error:", postsError?.message);
+		return <Text>Error loading data</Text>;
+	}
 
-	const user = userData?.getUser;
-	console.log(user);
+	const user = userData.getUser;
+	// console.log(user);
 
-	const posts = postsData?.getPosts;
+	const posts = postsData.getPosts;
+	// console.log(posts);
+	// const userPostId = map(posts, (post) => post.author._id);
+
+	const handleProfileClick = async (userId) => {
+		await SecureStore.setItemAsync("loggedInUser", userId);
+
+		const storedUserId = await SecureStore.getItemAsync("loggedInUser");
+		console.log("ID yang disimpan di AsyncStorage:", storedUserId);
+
+		navigation.navigate("Profile");
+	};
+
+	const handleUserClick = async (post) => {
+		console.log("Post yang dipilih:", post);
+		const authorId = post.author._id;
+		console.log("ID author yang dipilih:", authorId);
+
+		await SecureStore.setItemAsync("viewedUserId", authorId);
+
+		const storedUserId = await SecureStore.getItemAsync("viewedUserId");
+		console.log("ID yang disimpan di AsyncStorage:", storedUserId);
+
+		navigation.navigate("Profile", { authorId });
+	};
+
+	const handlePostClick = async (postId) => {
+		console.log("Post yang dipilih:", postId);
+		try {
+			await SecureStore.setItemAsync("viewedPostId", postId);
+			const storedPostId = await SecureStore.getItemAsync("viewedPostId");
+			console.log("ID yang disimpan di AsyncStorage:", storedPostId);
+
+			navigation.navigate("PostDetail", { postId });
+		} catch (error) {
+			console.error("Error saat menyimpan post ID:", error);
+		}
+	};
+
+	const formatDate = (isoString) => {
+		const date = new Date(isoString);
+
+		const options = {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		};
+
+		return new Intl.DateTimeFormat("en-US", options).format(date);
+	};
+
+	const handleLogout = async () => {
+		try {
+			await SecureStore.deleteItemAsync("userData");
+			await SecureStore.deleteItemAsync("viewedPostId");
+			// await AsyncStorage.multiRemove(["userData", "viewedPostId"]);
+			navigation.replace("Login");
+		} catch (error) {
+			console.error("Error during logout:", error);
+		}
+	};
 
 	return (
 		<View style={styles.container}>
@@ -96,18 +176,22 @@ const HomeScreen = ({ navigation }) => {
 				<TouchableOpacity onPress={() => navigation.navigate("Home")}>
 					<Text style={styles.headerText}>LinkedOn</Text>
 				</TouchableOpacity>
-				<TouchableOpacity onPress={() => navigation.navigate("Login")}>
+				<TouchableOpacity onPress={handleLogout}>
 					<Text style={styles.logoutButton}>Logout</Text>
 				</TouchableOpacity>
 			</View>
 
 			<View style={styles.profileSection}>
 				<Image
-					source={{ uri: "https://www.w3schools.com/howto/img_avatar.png" }}
+					source={{
+						uri: "https://www.w3schools.com/howto/img_avatar.png",
+					}}
 					style={styles.profileImage}
 				/>
-				<Text style={styles.welcomeText}>Welcome, {user?.username}!</Text>
-				<Text style={styles.positionText}>Software Developer</Text>
+				<Text style={styles.welcomeText}>{user?.name}</Text>
+				<Text style={styles.positionText}>
+					{user?.occupation || "Software Developer"}
+				</Text>
 				<TouchableOpacity
 					style={styles.editProfileButton}
 					onPress={() => navigation.navigate("EditProfile")}>
@@ -120,62 +204,53 @@ const HomeScreen = ({ navigation }) => {
 				data={posts}
 				keyExtractor={(item) => item._id}
 				renderItem={({ item }) => (
-					<View
-						style={[
-							styles.post,
-							item.imgUrl ? { paddingBottom: 20 } : { paddingBottom: 0 },
-						]}>
-						<Image
-							source={{ uri: "https://www.w3schools.com/howto/img_avatar.png" }}
-							style={styles.postProfileImage}
-						/>
-						<View style={styles.postContent}>
-							<View style={styles.postHeader}>
-								<Text style={styles.postAuthor}>{item.author.username}</Text>
-								<TouchableOpacity style={styles.likeButton}>
-									<Ionicons name="thumbs-up-sharp" size={20} color="#0077B5" />
-								</TouchableOpacity>
+					<TouchableOpacity onPress={() => handlePostClick(item._id)}>
+						<View
+							style={[
+								styles.post,
+								item.imgUrl ? { paddingBottom: 20 } : { paddingBottom: 0 },
+							]}>
+							<Image
+								source={{
+									uri:
+										user?.image ||
+										"https://www.w3schools.com/howto/img_avatar.png",
+								}}
+								style={styles.postProfileImage}
+								// onPress={() => handleUserClick(item)}
+							/>
+							<View style={styles.postContent}>
+								<View style={styles.postHeader}>
+									<TouchableOpacity style={styles.button}>
+										<Text
+											style={styles.postAuthor}
+											onPress={() => handleUserClick(item)}>
+											{item.author.username}
+										</Text>
+									</TouchableOpacity>
+								</View>
+								<Text style={styles.postText}>{item.content}</Text>
+								{item.imgUrl && (
+									<Image
+										source={{ uri: item?.imgUrl || "" }}
+										style={styles.postImage}
+									/>
+								)}
+								<Text style={styles.postText}>
+									{formatDate(item.createdAt)}
+								</Text>
 							</View>
-							<Text style={styles.postText}>{item.content}</Text>
-							{item.imgUrl && (
-								<Image
-									source={{ uri: item.imgUrl || "" }}
-									style={styles.postImage}
-								/>
-							)}
 						</View>
-					</View>
+					</TouchableOpacity>
 				)}
 				contentContainerStyle={styles.feedSection}
 			/>
 
-			<View style={styles.footerContainer}>
-				<View style={styles.footer}>
-					<TouchableOpacity
-						style={styles.footerButton}
-						onPress={() => navigation.navigate("Profile")}>
-						<Ionicons name="person" size={30} color="white" />
-						<Text style={styles.footerText}>Profile</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={styles.footerButton}
-						onPress={() => navigation.navigate("FollowerList")}>
-						<Ionicons name="people" size={30} color="white" />
-						<Text style={styles.footerText}>Connect</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={styles.footerButton}
-						onPress={() => navigation.navigate("SearchUser")}>
-						<Ionicons name="search" size={30} color="white" />
-						<Text style={styles.footerText}>Search</Text>
-					</TouchableOpacity>
-				</View>
-				<TouchableOpacity
-					style={styles.floatingButton}
-					onPress={() => navigation.navigate("CreatePost")}>
-					<Ionicons name="add" size={32} color="white" />
-				</TouchableOpacity>
-			</View>
+			<TouchableOpacity
+				style={styles.floatingButton}
+				onPress={() => navigation.navigate("CreatePost")}>
+				<Ionicons name="add" size={32} color="white" />
+			</TouchableOpacity>
 		</View>
 	);
 };
@@ -289,42 +364,20 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: "#555555",
 		marginTop: 5,
-		marginRight: 30,
 	},
 	postImage: {
-		marginTop: 10,
 		width: 250,
-		height: 150,
-		resizeMode: "cover",
-	},
-	likeButton: {
-		padding: 5,
-	},
-	footerContainer: {
-		position: "relative",
-	},
-	footer: {
-		flexDirection: "row",
-		justifyContent: "space-evenly",
-		backgroundColor: "#0077B5",
-		paddingVertical: 15,
-	},
-	footerButton: {
-		alignItems: "center",
-	},
-	footerText: {
-		color: "#FFFFFF",
-		fontSize: 12,
-		fontWeight: "bold",
+		height: 200,
+		marginTop: 10,
+		borderRadius: 10,
 	},
 	floatingButton: {
 		position: "absolute",
 		bottom: 20,
 		right: 20,
 		backgroundColor: "#0077B5",
+		borderRadius: 50,
 		padding: 15,
-		borderRadius: 30,
-		elevation: 5,
 	},
 });
 

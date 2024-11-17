@@ -9,15 +9,16 @@ import {
 	ActivityIndicator,
 } from "react-native";
 import { useQuery, gql } from "@apollo/client";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
+// GraphQL Queries
 const GET_FOLLOWERS = gql`
 	query Followers($userId: ID!) {
 		followers(userId: $userId) {
 			_id
-			followerName
-			followerUsername
-			followerImage
+			followingId
+			followerId
 		}
 	}
 `;
@@ -26,79 +27,101 @@ const GET_FOLLOWING = gql`
 	query Following($userId: ID!) {
 		following(userId: $userId) {
 			_id
-			followingName
-			followingUsername
-			followingImage
+			followerId
+			followingId
 		}
 	}
 `;
 
-const FollowersFollowingScreen = () => {
+const GET_USER = gql`
+	query User($userId: ID!) {
+		getUser(id: $userId) {
+			_id
+			name
+			username
+			image
+		}
+	}
+`;
+
+const FollowersFollowingScreen = ({ navigation }) => {
 	const [userId, setUserId] = useState(null);
 	const [activeTab, setActiveTab] = useState("followers");
 
+	// Query for user details
+	const { data: userData, loading: loadingUser } = useQuery(GET_USER, {
+		variables: { userId },
+		skip: !userId, // Only run query if userId is available
+	});
+
+	// Query for followers
 	const { data: followersData, loading: loadingFollowers } = useQuery(
 		GET_FOLLOWERS,
-		{ variables: { userId }, skip: !userId }
+		{
+			variables: { userId },
+			skip: !userId,
+		}
 	);
 
+	// Query for following
 	const { data: followingData, loading: loadingFollowing } = useQuery(
 		GET_FOLLOWING,
-		{ variables: { userId }, skip: !userId }
+		{
+			variables: { userId },
+			skip: !userId,
+		}
 	);
 
-	// console.log("Followers:", followersData);
-	// console.log("Following:", followingData);
-
-	const fetchUserId = async () => {
+	const fetchUserData = async () => {
 		try {
-			const storedUserData = await AsyncStorage.getItem("userData");
+			const storedUserData = await SecureStore.getItemAsync("userData");
 			const parsedUserData = storedUserData ? JSON.parse(storedUserData) : null;
+
 			if (parsedUserData && parsedUserData._id) {
 				setUserId(parsedUserData._id);
+			} else {
+				console.error("User data not found in SecureStore.");
 			}
 		} catch (error) {
-			console.error("Error fetching user data:", error);
+			console.error("Error fetching user data from SecureStore.", error);
 		}
 	};
 
 	useEffect(() => {
-		if (!userId) fetchUserId();
-	}, [userId]);
+		fetchUserData();
+	}, []);
 
-	if (loadingFollowers || loadingFollowing || !userId) {
+	const followers = followersData?.followers || [];
+	const following = followingData?.following || [];
+	// console.log(followers, following);
+	
+
+	const renderUserCard = (item) => {
+		const user =
+			item.followerId === userId ? item.followingId : item.followerId;
+
+		return (
+			<View style={styles.userCard}>
+				<Image
+					source={{
+						uri:
+							userData?.getUser?.image ||
+							"https://www.w3schools.com/howto/img_avatar.png",
+					}}
+					style={styles.userImage}
+				/>
+				<Text style={styles.userName}>{user}</Text>
+			</View>
+		);
+	};
+
+	if (loadingFollowers || loadingFollowing || loadingUser || !userId) {
 		return (
 			<View style={styles.loader}>
 				<ActivityIndicator size="large" color="#0077B5" />
 			</View>
 		);
 	}
-
-	const renderUserCard = ({ item }) => {
-		const name =
-			activeTab === "followers" ? item.followerName : item.followingName;
-		const username =
-			activeTab === "followers"
-				? item.followerUsername
-				: item.followingUsername;
-		const image =
-			activeTab === "followers" ? item.followerImage : item.followingImage;
-
-		return (
-			<View style={styles.userCard}>
-				<Image
-					source={{
-						uri: image || "https://www.w3schools.com/howto/img_avatar.png",
-					}}
-					style={styles.userImage}
-				/>
-				<View>
-					<Text style={styles.userName}>{name}</Text>
-					<Text style={styles.userUsername}>@{username}</Text>
-				</View>
-			</View>
-		);
-	};
 
 	return (
 		<View style={styles.container}>
@@ -117,14 +140,6 @@ const FollowersFollowingScreen = () => {
 						]}>
 						Followers
 					</Text>
-					<Text
-						style={[
-							styles.tabText,
-							activeTab === "followers" && styles.activeTabText,
-							{ marginHorizontal: "auto" },
-						]}>
-						({followersData.followers.length})
-					</Text>
 				</TouchableOpacity>
 				<TouchableOpacity
 					style={[styles.tab, activeTab === "following" && styles.activeTab]}
@@ -136,28 +151,14 @@ const FollowersFollowingScreen = () => {
 						]}>
 						Following
 					</Text>
-					<Text
-						style={[
-							styles.tabText,
-							activeTab === "following" && styles.activeTabText,
-							{ marginHorizontal: "auto" },
-						]}>
-						({followingData.following.length})
-					</Text>
 				</TouchableOpacity>
 			</View>
 
 			<FlatList
-				data={
-					activeTab === "followers"
-						? followersData?.followers
-						: followingData?.following
-				}
+				data={activeTab === "followers" ? followers : following}
 				keyExtractor={(item) => item._id}
-				renderItem={renderUserCard}
-				ListEmptyComponent={() => (
-					<Text style={styles.emptyText}>No {activeTab} found.</Text>
-				)}
+				renderItem={({ item }) => renderUserCard(item)}
+				ListEmptyComponent={() => <Text>No {activeTab} found.</Text>}
 				contentContainerStyle={styles.listContainer}
 			/>
 		</View>
@@ -167,7 +168,7 @@ const FollowersFollowingScreen = () => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#F8F8F8",
+		backgroundColor: "#E9E9E9",
 	},
 	header: {
 		backgroundColor: "#0077B5",
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
 	tabs: {
 		flexDirection: "row",
 		justifyContent: "space-around",
-		backgroundColor: "#FFFFFF",
+		backgroundColor: "#F5F5F5",
 		paddingVertical: 10,
 	},
 	tab: {
@@ -227,20 +228,10 @@ const styles = StyleSheet.create({
 		fontWeight: "bold",
 		color: "#333333",
 	},
-	userUsername: {
-		fontSize: 14,
-		color: "#555555",
-	},
 	loader: {
 		flex: 1,
 		justifyContent: "center",
 		alignItems: "center",
-	},
-	emptyText: {
-		textAlign: "center",
-		marginTop: 20,
-		color: "#888888",
-		fontSize: 16,
 	},
 });
 

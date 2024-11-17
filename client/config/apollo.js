@@ -1,7 +1,24 @@
-import { ApolloClient, InMemoryCache } from "@apollo/client";
+import { ApolloClient, ApolloLink, HttpLink, InMemoryCache } from "@apollo/client";
+import * as SecureStore from "expo-secure-store";
+
+const httpLink = new HttpLink({
+	uri: "https://linkedon.primawidiani.online",
+});
+
+const authLink = new ApolloLink(async (operation, forward) => {
+	const token = await SecureStore.getItemAsync("token");
+	console.log(token, "token");
+	
+	operation.setContext({
+		headers: {
+			authorization: token ? `${token}` : "",
+		},
+	});
+	return forward(operation);
+})
 
 const client = new ApolloClient({
-	uri: "https://8319-104-28-245-130.ngrok-free.app",
+	link: ApolloLink.from([authLink, httpLink]),
 	cache: new InMemoryCache(),
 });
 

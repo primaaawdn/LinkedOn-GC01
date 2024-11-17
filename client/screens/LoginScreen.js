@@ -1,197 +1,123 @@
-import React, { useState, useEffect } from "react";
+import React, { useContext, useState } from "react";
 import {
 	View,
 	Text,
-	StyleSheet,
-	Image,
+	TextInput,
 	TouchableOpacity,
-	FlatList,
+	StyleSheet,
+	Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useQuery, gql } from "@apollo/client";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useMutation, gql } from "@apollo/client";
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+import AuthContext from "../context/auth";
+import * as SecureStore from "expo-secure-store";
 
-// Define the query to fetch posts
-const GET_POSTS = gql`
-	query GetPosts {
-		getPosts {
-			_id
-			content
-			tags
-			imgUrl
-			comments {
-				content
-				username
-				createdAt
-				updatedAt
-			}
-			likes {
-				username
-				createdAt
-				updatedAt
-			}
-			createdAt
-			updatedAt
-			author {
+const userLogin = gql`
+	mutation LoginUser($username: String!, $password: String!) {
+		loginUser(username: $username, password: $password) {
+			user {
 				_id
+				name
 				username
+				email
+				password
 			}
+			token
 		}
 	}
 `;
 
-const GET_USER_PROFILE = gql`
-	query GetUser($getUserId: ID!) {
-		getUser(id: $getUserId) {
-			_id
-			name
-			username
-			email
-			password
-			image
-			occupation
-			bio
-		}
-	}
-`;
+const LoginScreen = ({ navigation }) => {
+	const [username, setUsername] = useState("akakaka");
+	const [password, setPassword] = useState("123456");
+	const {isSignedIn, setIsSignedIn} = useContext(AuthContext);
 
-const HomeScreen = ({ navigation }) => {
-	const [userId, setUserId] = useState(null);
+	const [loginUser, { data, loading, error }] = useMutation(userLogin, {
+		onCompleted: async (response) => {
+			console.log("Response:", response);
+			const token = response?.loginUser?.token;
+			const user = response?.loginUser?.user;
 
-	// Fetch userId from AsyncStorage and set the userId
-	const fetchUserData = async () => {
-		try {
-			const userData = await AsyncStorage.getItem("userData");
-			if (userData) {
-				const parsedUserData = JSON.parse(userData);
-				console.log("Fetched userData:", parsedUserData); // Log the user data
-				setUserId(parsedUserData._id); // Set userId from the user data
+			if (token && user) {
+				try {
+					// Save token and user data to AsyncStorage
+					await SecureStore.setItemAsync("token", token);
+					await SecureStore.setItemAsync("userData", JSON.stringify(user));
+
+					// Log to verify
+					console.log("Token:", token);
+					// console.log("User:", user);
+
+					setIsSignedIn(true);
+					console.log("isSignedIn Login:", isSignedIn);
+					Alert.alert("Success", "You have successfully logged in.");
+					// navigation.navigate("Main");
+				} catch (error) {
+					// console.log("AsyncStorage Error:", error);
+					Alert.alert("Error", "Failed to save data. Please try again.");
+				}
+			} else {
+				Alert.alert(
+					"Error",
+					"Failed to get token or user data. Please try again."
+				);
 			}
-		} catch (error) {
-			console.error("Error fetching user data:", error);
-		}
-	};
-
-	useEffect(() => {
-		fetchUserData(); // Fetch user data when the component mounts
-	}, []);
-
-	console.log("Current userId:", userId); // Log the userId to track its value
-
-	// Fetch the user profile if userId is available
-	const {
-		data: userData,
-		loading: userLoading,
-		error: userError,
-	} = useQuery(GET_USER_PROFILE, {
-		variables: { getUserId: userId },
-		skip: !userId, // Skip the query until userId is available
+		},
 	});
 
-	console.log("User Data:", userData); // Log the userData returned from the query
+	const handleLogin = () => {
+		if (!username || !password) {
+			Alert.alert("Error", "Username and password are required.");
+			return;
+		}
+		loginUser({ variables: { username, password } });
+		setIsSignedIn(true);
+	};
 
-	const {
-		data: postsData,
-		loading: postsLoading,
-		error: postsError,
-	} = useQuery(GET_POSTS);
-
-	if (userLoading || postsLoading) return <Text>Loading...</Text>;
-	if (userError || postsError) return <Text>Error loading data</Text>;
-
-	const user = userData?.getUser;
-	console.log("User object:", user.name);
+	if (error) {
+		console.log("GraphQL Error:", error); // Log the error to understand what's going wrong
+		Alert.alert("Login Failed", error.message || "An error occurred.");
+	}
 
 	return (
 		<View style={styles.container}>
-			{/* Header */}
-			<View style={styles.header}>
-				<TouchableOpacity onPress={() => navigation.navigate("Home")}>
-					<Text style={styles.headerText}>LinkedOn</Text>
-				</TouchableOpacity>
-				<TouchableOpacity onPress={() => navigation.navigate("Login")}>
-					<Text style={styles.logoutButton}>Logout</Text>
-				</TouchableOpacity>
-			</View>
+			<Text style={styles.title}>Sign in to LinkedOn</Text>
 
-			{/* Profile */}
-			<View style={styles.profileSection}>
-				<Image
-					source={{ uri: "https://www.w3schools.com/howto/img_avatar.png" }}
-					style={styles.profileImage}
-				/>
-				<Text style={styles.welcomeText}>{user?.name}</Text>
-				<Text style={styles.positionText}>Software Developer</Text>
-				<TouchableOpacity
-					style={styles.editProfileButton}
-					onPress={() => navigation.navigate("EditProfile")}>
-					<Text style={styles.editProfileText}>Edit Profile</Text>
-				</TouchableOpacity>
-			</View>
-
-			{/* Feed */}
-			<Text style={styles.feedTitle}>Your Feed</Text>
-			<FlatList
-				data={postsData?.getPosts}
-				keyExtractor={(item) => item._id}
-				renderItem={({ item }) => (
-					<View
-						style={[
-							styles.post,
-							item.imgUrl ? { paddingBottom: 20 } : { paddingBottom: 0 },
-						]}>
-						<Image
-							source={{ uri: "https://www.w3schools.com/howto/img_avatar.png" }}
-							style={styles.postProfileImage}
-						/>
-						<View style={styles.postContent}>
-							<View style={styles.postHeader}>
-								<Text style={styles.postAuthor}>{item.author.username}</Text>
-								<TouchableOpacity style={styles.likeButton}>
-									<Ionicons name="thumbs-up-sharp" size={20} color="#0077B5" />
-								</TouchableOpacity>
-							</View>
-							<Text style={styles.postText}>{item.content}</Text>
-							{item.imgUrl && (
-								<Image
-									source={{ uri: item.imgUrl || "" }}
-									style={styles.postImage}
-								/>
-							)}
-						</View>
-					</View>
-				)}
-				contentContainerStyle={styles.feedSection}
+			<TextInput
+				style={styles.input}
+				placeholder="Username"
+				placeholderTextColor="#B0C4DE"
+				keyboardType="default"
+				value={username}
+				onChangeText={setUsername}
 			/>
 
-			{/* Footer */}
-			<View style={styles.footerContainer}>
-				<View style={styles.footer}>
-					<TouchableOpacity
-						style={styles.footerButton}
-						onPress={() => navigation.navigate("Profile")}>
-						<Ionicons name="person" size={30} color="white" />
-						<Text style={styles.footerText}>Profile</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={styles.footerButton}
-						onPress={() => navigation.navigate("FollowerList")}>
-						<Ionicons name="people" size={30} color="white" />
-						<Text style={styles.footerText}>Connect</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={styles.footerButton}
-						onPress={() => navigation.navigate("SearchUser")}>
-						<Ionicons name="search" size={30} color="white" />
-						<Text style={styles.footerText}>Search</Text>
-					</TouchableOpacity>
-				</View>
-				<TouchableOpacity
-					style={styles.floatingButton}
-					onPress={() => navigation.navigate("CreatePost")}>
-					<Ionicons name="add" size={32} color="white" />
-				</TouchableOpacity>
-			</View>
+			<TextInput
+				style={styles.input}
+				placeholder="Password"
+				placeholderTextColor="#B0C4DE"
+				secureTextEntry
+				value={password}
+				onChangeText={setPassword}
+			/>
+
+			<TouchableOpacity
+				style={styles.loginButton}
+				onPress={handleLogin}
+				disabled={loading}>
+				<Text style={styles.loginButtonText}>
+					{loading ? "Logging in..." : "Sign In"}
+				</Text>
+			</TouchableOpacity>
+
+			<Text style={styles.footerText}>
+				Not a member?{" "}
+				<Text
+					style={styles.link}
+					onPress={() => navigation.replace("Register")}>
+					Join now
+				</Text>
+			</Text>
 		</View>
 	);
 };
@@ -199,148 +125,47 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#E9E9E9",
-	},
-	header: {
 		backgroundColor: "#0077B5",
-		padding: 15,
-		paddingVertical: 20,
-		flexDirection: "row",
-		justifyContent: "space-between",
 		alignItems: "center",
+		justifyContent: "center",
+		paddingHorizontal: 25,
 	},
-	headerText: {
-		fontSize: 20,
+	title: {
+		fontSize: 30,
+		fontWeight: "bold",
 		color: "#FFFFFF",
-		fontWeight: "bold",
+		marginBottom: 30,
 	},
-	logoutButton: {
-		color: "#FFFFFF",
-		fontSize: 16,
-	},
-	profileSection: {
-		alignItems: "center",
-		backgroundColor: "#FFFFFF",
-		padding: 20,
-		marginVertical: 15,
-		marginHorizontal: 15,
-		borderRadius: 10,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.3,
-		shadowRadius: 5,
-		elevation: 4,
-	},
-	profileImage: {
-		width: 80,
-		height: 80,
-		borderRadius: 40,
-		marginBottom: 10,
-	},
-	welcomeText: {
-		fontSize: 18,
-		fontWeight: "bold",
-		color: "#333333",
-	},
-	positionText: {
-		fontSize: 16,
-		color: "#777777",
-	},
-	editProfileButton: {
-		backgroundColor: "#0077B5",
-		paddingVertical: 6,
-		paddingHorizontal: 20,
-		borderRadius: 20,
-		marginTop: 10,
-	},
-	editProfileText: {
-		color: "#fff",
-		fontSize: 14,
-		fontWeight: "bold",
-	},
-	feedSection: {
-		paddingHorizontal: 15,
-	},
-	feedTitle: {
-		fontSize: 18,
-		fontWeight: "bold",
-		color: "#333333",
-		marginVertical: 10,
-		paddingLeft: 15,
-	},
-	post: {
-		flexDirection: "row",
-		backgroundColor: "#FFFFFF",
-		padding: 15,
-		marginBottom: 10,
-		borderRadius: 10,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.2,
-		shadowRadius: 5,
-		elevation: 3,
-		alignItems: "flex-start",
-	},
-	postProfileImage: {
-		width: 40,
-		height: 40,
-		borderRadius: 20,
-		marginRight: 15,
-		marginTop: 10,
-	},
-	postContent: {
-		flex: 1,
-	},
-	postHeader: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		// marginBottom: 10,
-	},
-	postAuthor: {
-		fontWeight: "bold",
-		fontSize: 16,
-		color: "#333333",
-	},
-	likeButton: {
-		padding: 5,
-	},
-	postText: {
-		fontSize: 14,
-		color: "#555555",
-	},
-	postImage: {
+	input: {
 		width: "100%",
-		height: 200,
-		marginTop: 10,
+		backgroundColor: "#FFFFFF",
 		borderRadius: 5,
+		padding: 15,
+		fontSize: 16,
+		marginBottom: 20,
 	},
-	footerContainer: {
-		position: "relative",
-	},
-	footer: {
-		flexDirection: "row",
-		justifyContent: "space-evenly",
-		backgroundColor: "#0077B5",
+	loginButton: {
+		width: "100%",
+		backgroundColor: "#005682",
 		paddingVertical: 15,
-	},
-	footerButton: {
+		borderRadius: 5,
 		alignItems: "center",
+		marginBottom: 20,
+	},
+	loginButtonText: {
+		color: "#FFFFFF",
+		fontSize: 16,
+		fontWeight: "bold",
 	},
 	footerText: {
 		color: "#FFFFFF",
-		fontSize: 12,
-		fontWeight: "bold",
+		fontSize: 14,
+		marginTop: 10,
 	},
-	floatingButton: {
-		position: "absolute",
-		bottom: 100,
-		right: 20,
-		backgroundColor: "#0077B5",
-		padding: 15,
-		borderRadius: 30,
-		elevation: 5,
+	link: {
+		color: "#B0C4DE",
+		fontWeight: "bold",
 	},
 });
 
-export default HomeScreen;
+export default LoginScreen;
