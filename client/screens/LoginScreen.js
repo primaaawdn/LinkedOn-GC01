@@ -28,8 +28,8 @@ const userLogin = gql`
 `;
 
 const LoginScreen = ({ navigation }) => {
-	const [username, setUsername] = useState("akakaka");
-	const [password, setPassword] = useState("123456");
+	const [username, setUsername] = useState("");
+	const [password, setPassword] = useState("");
 	const {isSignedIn, setIsSignedIn} = useContext(AuthContext);
 
 	const [loginUser, { data, loading, error }] = useMutation(userLogin, {
@@ -40,11 +40,9 @@ const LoginScreen = ({ navigation }) => {
 
 			if (token && user) {
 				try {
-					// Save token and user data to AsyncStorage
 					await SecureStore.setItemAsync("token", token);
 					await SecureStore.setItemAsync("userData", JSON.stringify(user));
 
-					// Log to verify
 					console.log("Token:", token);
 					// console.log("User:", user);
 
@@ -75,7 +73,7 @@ const LoginScreen = ({ navigation }) => {
 	};
 
 	if (error) {
-		console.log("GraphQL Error:", error); // Log the error to understand what's going wrong
+		console.log("GraphQL Error:", error);
 		Alert.alert("Login Failed", error.message || "An error occurred.");
 	}
 

@@ -13,7 +13,6 @@ import RegisterScreen from "./screens/RegisterScreen";
 import CreatePost from "./screens/CreatePost";
 import PostDetail from "./screens/PostDetail";
 import AuthContext from "./context/auth";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -74,45 +73,44 @@ function MyTabs() {
 
 export default function Navigator() {
 	const { isSignedIn } = useContext(AuthContext);
-	console.log(isSignedIn, "navigator");
 
 	return (
-			<NavigationContainer style={styles.container}>
-				<Stack.Navigator>
-					{isSignedIn ? (
-						<>
-							<Stack.Screen
-								name="Main"
-								component={MyTabs}
-								options={{ headerShown: false }}
-							/>
-							<Stack.Screen
-								name="CreatePost"
-								component={CreatePost}
-								options={{ headerShown: false }}
-							/>
-							<Stack.Screen
-								name="PostDetail"
-								component={PostDetail}
-								options={{ headerShown: false }}
-							/>
-						</>
-					) : (
-						<>
-							<Stack.Screen
-								name="Login"
-								component={LoginScreen}
-								options={{ headerShown: false }}
-							/>
-							<Stack.Screen
-								name="Register"
-								component={RegisterScreen}
-								options={{ headerShown: false }}
-							/>
-						</>
-					)}
-				</Stack.Navigator>
-			</NavigationContainer>
+		<NavigationContainer>
+			<Stack.Navigator style={styles.container}>
+				{isSignedIn ? (
+					<>
+						<Stack.Screen
+							name="Main"
+							component={MyTabs}
+							options={{ headerShown: false }}
+						/>
+						<Stack.Screen
+							name="CreatePost"
+							component={CreatePost}
+							options={{ headerShown: false }}
+						/>
+						<Stack.Screen
+							name="PostDetail"
+							component={PostDetail}
+							options={{ headerShown: false }}
+						/>
+					</>
+				) : (
+					<>
+						<Stack.Screen
+							name="Login"
+							component={LoginScreen}
+							options={{ headerShown: false }}
+						/>
+						<Stack.Screen
+							name="Register"
+							component={RegisterScreen}
+							options={{ headerShown: false }}
+						/>
+					</>
+				)}
+			</Stack.Navigator>
+		</NavigationContainer>
 	);
 }
 
@@ -120,7 +118,7 @@ const styles = StyleSheet.create({
 	container: {
 		flex: 1,
 		backgroundColor: "#fff",
-		marginTop: 15,
+		marginTop: 25,
 	},
 	footer: {
 		backgroundColor: "#0077B5",

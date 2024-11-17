@@ -68,10 +68,10 @@ const PostDetail = ({ navigation }) => {
 	const [username, setUsername] = useState("");
 	const [hasLiked, setHasLiked] = useState(false);
 
-	const { data, loading, error } = useQuery(GET_POST_DETAIL, {
-        skip: !postId,
-        variables: { getPostByIdId: postId },
-    });
+	const { data, loading, error, refetch } = useQuery(GET_POST_DETAIL, {
+		skip: !postId,
+		variables: { getPostByIdId: postId },
+	});
 
 	const [addComment] = useMutation(ADD_COMMENT);
 	const [addLike] = useMutation(ADD_LIKE);
@@ -109,6 +109,7 @@ const PostDetail = ({ navigation }) => {
 				content: commentContent,
 				username,
 				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
 			};
 
 			await addComment({
@@ -117,9 +118,12 @@ const PostDetail = ({ navigation }) => {
 					content: commentContent,
 					username,
 				},
-				optimisticResponse: {
-					commentPost: newComment,
-				},
+				refetchQueries: [
+					{
+						query: GET_POST_DETAIL, 
+						variables: { getPostByIdId: postId },
+					},
+				],
 				update: (cache, { data }) => {
 					const newCommentData = data.commentPost;
 					const existingData = cache.readQuery({
@@ -143,7 +147,7 @@ const PostDetail = ({ navigation }) => {
 				},
 			});
 
-			setCommentContent("");
+			setCommentContent(""); 
 		} catch (err) {
 			console.error("Error adding comment:", err);
 		}
@@ -162,6 +166,7 @@ const PostDetail = ({ navigation }) => {
 					username,
 				},
 			});
+			refetch();
 		} catch (err) {
 			console.error("Error liking post:", err);
 			setHasLiked(false);
@@ -182,6 +187,8 @@ const PostDetail = ({ navigation }) => {
 	}
 
 	const post = data.getPostById;
+
+	const tags = post.tags.join(", ");
 
 	const formatDate = (isoString) => {
 		const date = new Date(isoString);
@@ -219,9 +226,8 @@ const PostDetail = ({ navigation }) => {
 				<View style={styles.authorAndDateContainer}>
 					<View style={styles.authorContainer}>
 						<Text style={styles.postAuthor}>Author: {post.author.name}</Text>
-						<Text style={styles.postDate}>
-							{formatDate(post.createdAt)}
-						</Text>
+						<Text style={styles.tags}>Tags: {tags}</Text>
+						<Text style={styles.postDate}>{formatDate(post.createdAt)}</Text>
 					</View>
 
 					<TouchableOpacity style={styles.likeButton} onPress={handleLikePost}>
@@ -234,7 +240,6 @@ const PostDetail = ({ navigation }) => {
 					</TouchableOpacity>
 				</View>
 
-				{/* Comments Section */}
 				<View style={styles.commentsContainer}>
 					<Text style={styles.commentTitle}>Comments:</Text>
 					{post.comments.length === 0 ? (
@@ -251,8 +256,6 @@ const PostDetail = ({ navigation }) => {
 						))
 					)}
 				</View>
-
-				{/* Add Comment Form */}
 				<TextInput
 					style={styles.input}
 					placeholder="Write a comment..."
@@ -282,6 +285,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "space-between",
 		alignItems: "center",
+		marginTop: 25,
 	},
 	headerText: {
 		fontSize: 20,

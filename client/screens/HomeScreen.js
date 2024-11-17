@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
 	View,
 	Text,
@@ -10,8 +10,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, gql } from "@apollo/client";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import AuthContext from "../context/auth";
 
 const GET_POSTS = gql`
 	query GetPosts {
@@ -23,38 +23,35 @@ const GET_POSTS = gql`
 			comments {
 				content
 				username
-				createdAt
-				updatedAt
 			}
 			likes {
 				username
-				createdAt
-				updatedAt
 			}
 			createdAt
-			updatedAt
 			author {
 				_id
 				username
+				name
 			}
 		}
 	}
 `;
+
 const GET_USER_PROFILE = gql`
 	query GetUser($getUserId: ID!) {
 		getUser(id: $getUserId) {
 			_id
-			username
 			name
-			bio
-			email
-			occupation
+			username
 			image
+			occupation
 		}
 	}
 `;
+
 const HomeScreen = ({ navigation }) => {
 	const [userId, setUserId] = useState(null);
+	const { logout } = useContext(AuthContext);
 
 	useEffect(() => {
 		const fetchUserId = async () => {
@@ -63,27 +60,22 @@ const HomeScreen = ({ navigation }) => {
 				const parsedUserData = storedUserData
 					? JSON.parse(storedUserData)
 					: null;
-	
+
 				if (parsedUserData && parsedUserData._id) {
 					setUserId(parsedUserData._id);
-				} else {
-					console.error("User data not found in AsyncStorage");
 				}
 			} catch (error) {
-				console.error("Error fetching user data from AsyncStorage:", error);
+				console.error("Error fetching user data:", error);
 			}
 		};
-	
 		fetchUserId();
 	}, []);
-	
-	console.log("User ID dari home:", userId);
-	
 
 	const {
 		data: userData,
 		loading: userLoading,
 		error: userError,
+		refetch: refetchUser,
 	} = useQuery(GET_USER_PROFILE, {
 		variables: { getUserId: userId },
 		skip: !userId,
@@ -93,89 +85,68 @@ const HomeScreen = ({ navigation }) => {
 		data: postsData,
 		loading: postsLoading,
 		error: postsError,
+		refetch: refetchPosts,
 	} = useQuery(GET_POSTS);
 
-	if (userLoading || postsLoading) return <Text>Loading...</Text>;
 	if (userError || postsError) {
 		console.error("User Error:", userError?.message);
 		console.error("Posts Error:", postsError?.message);
-		return <Text>Error loading data</Text>;
+		return (
+			<View style={styles.center}>
+				<Text>Error loading data. Please try again later.</Text>
+			</View>
+		);
 	}
 
-	const user = userData.getUser;
-	// console.log(user);
+	if (userLoading || postsLoading || !userId) {
+		return (
+			<View style={styles.center}>
+				<ActivityIndicator size="large" color="#0077B5" />
+			</View>
+		);
+	}
 
-	const posts = postsData.getPosts;
-	// console.log(posts);
-	// const userPostId = map(posts, (post) => post.author._id);
-
-	const handleProfileClick = async (userId) => {
-		await SecureStore.setItemAsync("loggedInUser", userId);
-
-		const storedUserId = await SecureStore.getItemAsync("loggedInUser");
-		console.log("ID yang disimpan di AsyncStorage:", storedUserId);
-
-		navigation.navigate("Profile");
-	};
-
-	const handleUserClick = async (post) => {
-		console.log("Post yang dipilih:", post);
-		const authorId = post.author._id;
-		console.log("ID author yang dipilih:", authorId);
-
-		await SecureStore.setItemAsync("viewedUserId", authorId);
-
-		const storedUserId = await SecureStore.getItemAsync("viewedUserId");
-		console.log("ID yang disimpan di AsyncStorage:", storedUserId);
-
-		navigation.navigate("Profile", { authorId });
-	};
-
-	const handlePostClick = async (postId) => {
-		console.log("Post yang dipilih:", postId);
-		try {
-			await SecureStore.setItemAsync("viewedPostId", postId);
-			const storedPostId = await SecureStore.getItemAsync("viewedPostId");
-			console.log("ID yang disimpan di AsyncStorage:", storedPostId);
-
-			navigation.navigate("PostDetail", { postId });
-		} catch (error) {
-			console.error("Error saat menyimpan post ID:", error);
-		}
-	};
+	const user = userData?.getUser;
+	const posts = postsData?.getPosts;
 
 	const formatDate = (isoString) => {
 		const date = new Date(isoString);
-
-		const options = {
+		return date.toLocaleDateString("en-US", {
 			day: "2-digit",
 			month: "short",
 			year: "numeric",
 			hour: "2-digit",
 			minute: "2-digit",
-			hour12: false,
-		};
+		});
+	};
 
-		return new Intl.DateTimeFormat("en-US", options).format(date);
+	const handleProfileClick = () => navigation.navigate("Profile");
+
+	const handlePostClick = async (postId) => {
+		try {
+			await SecureStore.setItemAsync("viewedPostId", postId);
+			navigation.navigate("PostDetail", { postId });
+			refetchPosts();
+		} catch (error) {
+			console.error("Error saving post ID:", error);
+		}
 	};
 
 	const handleLogout = async () => {
-		try {
-			await SecureStore.deleteItemAsync("userData");
-			await SecureStore.deleteItemAsync("viewedPostId");
-			// await AsyncStorage.multiRemove(["userData", "viewedPostId"]);
-			navigation.replace("Login");
-		} catch (error) {
-			console.error("Error during logout:", error);
-		}
+		await logout();
+		refetchUser();
+		navigation.replace("Login");
+	};
+
+	const handleCreatePost = () => {
+		navigation.navigate("CreatePost");
+		refetchPosts();
 	};
 
 	return (
 		<View style={styles.container}>
 			<View style={styles.header}>
-				<TouchableOpacity onPress={() => navigation.navigate("Home")}>
-					<Text style={styles.headerText}>LinkedOn</Text>
-				</TouchableOpacity>
+				<Text style={styles.headerText}>LinkedOn</Text>
 				<TouchableOpacity onPress={handleLogout}>
 					<Text style={styles.logoutButton}>Logout</Text>
 				</TouchableOpacity>
@@ -184,7 +155,8 @@ const HomeScreen = ({ navigation }) => {
 			<View style={styles.profileSection}>
 				<Image
 					source={{
-						uri: "https://www.w3schools.com/howto/img_avatar.png",
+						uri:
+							user?.image || "https://www.w3schools.com/howto/img_avatar.png",
 					}}
 					style={styles.profileImage}
 				/>
@@ -194,7 +166,7 @@ const HomeScreen = ({ navigation }) => {
 				</Text>
 				<TouchableOpacity
 					style={styles.editProfileButton}
-					onPress={() => navigation.navigate("EditProfile")}>
+					onPress={handleProfileClick}>
 					<Text style={styles.editProfileText}>Edit Profile</Text>
 				</TouchableOpacity>
 			</View>
@@ -205,34 +177,21 @@ const HomeScreen = ({ navigation }) => {
 				keyExtractor={(item) => item._id}
 				renderItem={({ item }) => (
 					<TouchableOpacity onPress={() => handlePostClick(item._id)}>
-						<View
-							style={[
-								styles.post,
-								item.imgUrl ? { paddingBottom: 20 } : { paddingBottom: 0 },
-							]}>
+						<View style={styles.post}>
 							<Image
 								source={{
 									uri:
-										user?.image ||
+										item.author?.image ||
 										"https://www.w3schools.com/howto/img_avatar.png",
 								}}
 								style={styles.postProfileImage}
-								// onPress={() => handleUserClick(item)}
 							/>
 							<View style={styles.postContent}>
-								<View style={styles.postHeader}>
-									<TouchableOpacity style={styles.button}>
-										<Text
-											style={styles.postAuthor}
-											onPress={() => handleUserClick(item)}>
-											{item.author.username}
-										</Text>
-									</TouchableOpacity>
-								</View>
+								<Text style={styles.postAuthor}>{item.author.name}</Text>
 								<Text style={styles.postText}>{item.content}</Text>
 								{item.imgUrl && (
 									<Image
-										source={{ uri: item?.imgUrl || "" }}
+										source={{ uri: item.imgUrl }}
 										style={styles.postImage}
 									/>
 								)}
@@ -248,7 +207,7 @@ const HomeScreen = ({ navigation }) => {
 
 			<TouchableOpacity
 				style={styles.floatingButton}
-				onPress={() => navigation.navigate("CreatePost")}>
+				onPress={handleCreatePost}>
 				<Ionicons name="add" size={32} color="white" />
 			</TouchableOpacity>
 		</View>
@@ -267,6 +226,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "space-between",
 		alignItems: "center",
+		marginTop: 25,
 	},
 	headerText: {
 		fontSize: 20,
@@ -317,48 +277,41 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		fontWeight: "bold",
 	},
-	feedSection: {
-		paddingHorizontal: 15,
-	},
 	feedTitle: {
-		fontSize: 18,
+		fontSize: 22,
 		fontWeight: "bold",
-		color: "#333333",
-		marginVertical: 10,
-		paddingLeft: 15,
+		marginLeft: 15,
+		marginTop: 20,
+		marginBottom: 10,
+	},
+	feedSection: {
+		paddingBottom: 20,
 	},
 	post: {
-		flexDirection: "row",
-		backgroundColor: "#FFFFFF",
+		backgroundColor: "#fff",
+		marginBottom: 15,
 		padding: 15,
-		marginBottom: 10,
+		flexDirection: "row",
 		borderRadius: 10,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.2,
+		shadowOpacity: 0.1,
 		shadowRadius: 5,
-		elevation: 3,
-		alignItems: "flex-start",
+		elevation: 4,
+		marginHorizontal: 15,
 	},
 	postProfileImage: {
-		width: 40,
-		height: 40,
-		borderRadius: 20,
+		width: 50,
+		height: 50,
+		borderRadius: 25,
 		marginRight: 10,
 	},
 	postContent: {
 		flex: 1,
-		marginLeft: 2,
-	},
-	postHeader: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
 	},
 	postAuthor: {
-		fontSize: 16,
 		fontWeight: "bold",
-		color: "#333333",
+		fontSize: 16,
 	},
 	postText: {
 		fontSize: 14,
@@ -366,18 +319,19 @@ const styles = StyleSheet.create({
 		marginTop: 5,
 	},
 	postImage: {
-		width: 250,
+		width: "100%",
 		height: 200,
 		marginTop: 10,
-		borderRadius: 10,
+		borderRadius: 8,
 	},
 	floatingButton: {
 		position: "absolute",
 		bottom: 20,
 		right: 20,
 		backgroundColor: "#0077B5",
-		borderRadius: 50,
 		padding: 15,
+		borderRadius: 50,
+		elevation: 4,
 	},
 });
 

@@ -8,8 +8,8 @@ import {
 	FlatList,
 	StyleSheet,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native"; // Import untuk navigasi
-
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 const SEARCH_USER = gql`
 	query SearchUser($query: String!) {
@@ -33,13 +33,13 @@ const SearchScreen = () => {
 
 	const { data, loading, error, refetch } = useQuery(SEARCH_USER, {
 		variables: { query: searchQuery },
-		enabled: false, 
+		enabled: false,
 	});
 
 	const handleSearch = () => {
 		if (searchQuery.trim() === "") return;
-		setIsSearchTriggered(true); 
-		refetch(); 
+		setIsSearchTriggered(true);
+		refetch();
 	};
 
 	const handleFollowToggle = (userId) => {
@@ -49,14 +49,12 @@ const SearchScreen = () => {
 		}));
 	};
 
-	// Fungsi untuk mengarahkan ke halaman profil pengguna yang dipilih
 	const handleUserClick = (id) => {
-		navigation.navigate("Profile", { userId: id }); // Navigasi ke halaman profil dengan userId
+		navigation.navigate("Profile", { userId: id });
 	};
 
 	const renderItem = ({ item }) => (
 		<View style={styles.resultItem}>
-			{/* Klik pada nama user untuk navigasi ke profil */}
 			<TouchableOpacity onPress={() => handleUserClick(item._id)}>
 				<Text style={styles.userName}>{item.name}</Text>
 			</TouchableOpacity>
@@ -77,6 +75,14 @@ const SearchScreen = () => {
 
 	return (
 		<View style={styles.container}>
+			<View style={styles.header}>
+				<TouchableOpacity>
+					<Text style={styles.headerText}>Search</Text>
+				</TouchableOpacity>
+				<TouchableOpacity onPress={() => navigation.goBack()}>
+					<Ionicons name="close" size={24} color="#FFFFFF" />
+				</TouchableOpacity>
+			</View>
 			<View style={styles.searchContainer}>
 				<TextInput
 					style={styles.searchInput}
@@ -91,19 +97,21 @@ const SearchScreen = () => {
 				</TouchableOpacity>
 			</View>
 
-			{loading && <Text>Loading...</Text>}
-			{error && <Text>Error: {error.message}</Text>}
+			<View style={styles.resultContainer}>
+				{loading && <Text>Loading...</Text>}
+				{error && <Text>Error: {error.message}</Text>}
 
-			{isSearchTriggered && (
-				<FlatList
-					data={data ? data.searchUser : []}
-					renderItem={renderItem}
-					keyExtractor={(item) => item._id}
-					ListEmptyComponent={
-						<Text style={styles.noResults}>No users found</Text>
-					}
-				/>
-			)}
+				{isSearchTriggered && (
+					<FlatList
+						data={data ? data.searchUser : []}
+						renderItem={renderItem}
+						keyExtractor={(item) => item._id}
+						ListEmptyComponent={
+							<Text style={styles.noResults}>No users found</Text>
+						}
+					/>
+				)}
+			</View>
 		</View>
 	);
 };
@@ -112,11 +120,26 @@ const styles = StyleSheet.create({
 	container: {
 		flex: 1,
 		backgroundColor: "#E9E9E9",
-		paddingHorizontal: 15,
+		// paddingHorizontal: 15,
+	},
+	header: {
+		backgroundColor: "#0077B5",
+		padding: 15,
+		paddingVertical: 20,
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginTop: 25,
+	},
+	headerText: {
+		fontSize: 20,
+		color: "#FFFFFF",
+		fontWeight: "bold",
 	},
 	searchContainer: {
 		flexDirection: "row",
 		marginVertical: 15,
+		paddingHorizontal: 15,
 	},
 	searchInput: {
 		flex: 1,
@@ -143,6 +166,9 @@ const styles = StyleSheet.create({
 		color: "#FFFFFF",
 		fontSize: 16,
 		fontWeight: "bold",
+	},
+	resultContainer: {
+		padding: 15,
 	},
 	resultItem: {
 		flexDirection: "row",

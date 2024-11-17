@@ -11,8 +11,8 @@ import {
 import { useQuery, gql } from "@apollo/client";
 // import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { Ionicons } from "@expo/vector-icons";
 
-// GraphQL Queries
 const GET_FOLLOWERS = gql`
 	query Followers($userId: ID!) {
 		followers(userId: $userId) {
@@ -48,13 +48,11 @@ const FollowersFollowingScreen = ({ navigation }) => {
 	const [userId, setUserId] = useState(null);
 	const [activeTab, setActiveTab] = useState("followers");
 
-	// Query for user details
 	const { data: userData, loading: loadingUser } = useQuery(GET_USER, {
 		variables: { userId },
-		skip: !userId, // Only run query if userId is available
+		skip: !userId,
 	});
 
-	// Query for followers
 	const { data: followersData, loading: loadingFollowers } = useQuery(
 		GET_FOLLOWERS,
 		{
@@ -63,7 +61,6 @@ const FollowersFollowingScreen = ({ navigation }) => {
 		}
 	);
 
-	// Query for following
 	const { data: followingData, loading: loadingFollowing } = useQuery(
 		GET_FOLLOWING,
 		{
@@ -93,8 +90,7 @@ const FollowersFollowingScreen = ({ navigation }) => {
 
 	const followers = followersData?.followers || [];
 	const following = followingData?.following || [];
-	// console.log(followers, following);
-	
+	console.log(followers, following);
 
 	const renderUserCard = (item) => {
 		const user =
@@ -126,7 +122,12 @@ const FollowersFollowingScreen = ({ navigation }) => {
 	return (
 		<View style={styles.container}>
 			<View style={styles.header}>
-				<Text style={styles.headerText}>Followers & Following</Text>
+				<TouchableOpacity>
+					<Text style={styles.headerText}>Followers & Following</Text>
+				</TouchableOpacity>
+				<TouchableOpacity onPress={() => navigation.goBack()}>
+					<Ionicons name="close" size={24} color="#FFFFFF" />
+				</TouchableOpacity>
 			</View>
 
 			<View style={styles.tabs}>
@@ -173,7 +174,11 @@ const styles = StyleSheet.create({
 	header: {
 		backgroundColor: "#0077B5",
 		padding: 15,
+		paddingVertical: 20,
+		flexDirection: "row",
+		justifyContent: "space-between",
 		alignItems: "center",
+		marginTop: 25,
 	},
 	headerText: {
 		fontSize: 20,
