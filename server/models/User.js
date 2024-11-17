@@ -15,29 +15,29 @@ class User {
 	}
 
 	static async findById(id) {
-        try {
-            const db = await connectToDB();
-            const userId = new ObjectId(id); 
-            const user = await db.collection("User").findOne({ _id: userId });
-            if (!user) throw new Error("User not found");
-            return user;
-        } catch (error) {
-            console.log("Error in findById:", error);
-            throw new Error("User not found");
-        }
-    }    
-    
-    static async findByUsername(username) {
-        try {
-            const db = await connectToDB();
-            const user = await db.collection("User").findOne({ username });
-            if (!user) throw new Error("User not found");
-            return user;
-        } catch (error) {
-            throw new Error("User not found");
-        }
-    }
-    
+		try {
+			const db = await connectToDB();
+			const userId = new ObjectId(id);
+			const user = await db.collection("User").findOne({ _id: userId });
+			if (!user) throw new Error("User not found");
+			return user;
+		} catch (error) {
+			console.log("Error in findById:", error);
+			throw new Error("User not found");
+		}
+	}
+
+	static async findByUsername(username) {
+		try {
+			const db = await connectToDB();
+			const user = await db.collection("User").findOne({ username });
+			if (!user) throw new Error("User not found");
+			return user;
+		} catch (error) {
+			throw new Error("User not found");
+		}
+	}
+
 	static async createUser({ name, username, email, password }) {
 		try {
 			const db = await connectToDB();
@@ -60,7 +60,7 @@ class User {
 				name,
 				username,
 				email,
-                password: hashedPassword,
+				password,
 			};
 		} catch (error) {
 			throw new Error("Failed to create user");
@@ -70,15 +70,33 @@ class User {
 	static async updateUser(id, updateData) {
 		try {
 			const db = await connectToDB();
-			const user = await db.collection("User").findOne({ _id: ObjectId(id) });
-			if (!user) throw new Error("User not found");
+			const userId = new ObjectId(id);
+			const existingUser = await db.collection("User").findOne({ _id: userId });
+
+			if (!existingUser) throw new Error("User not found");
+
+			if (updateData.password) {
+				updateData.password = await hashPassword(updateData.password);
+			}
+
+			const updateFields = {};
+			Object.keys(updateData).forEach((key) => {
+				if (updateData[key] !== undefined) {
+					updateFields[key] = updateData[key];
+				}
+			});
 
 			const updatedUser = await db
 				.collection("User")
-				.updateOne({ _id: ObjectId(id) }, { $set: updateData });
+				.updateOne({ _id: userId }, { $set: updateFields });
 
-			return updatedUser.modifiedCount > 0 ? { ...user, ...updateData } : null;
+			if (updatedUser.modifiedCount === 0) {
+				throw new Error("Failed to update user");
+			}
+
+			return { ...existingUser, ...updateFields };
 		} catch (error) {
+			console.log("Error in updateUser:", error);
 			throw new Error("Failed to update user");
 		}
 	}
@@ -96,24 +114,29 @@ class User {
 		}
 	}
 
-    static async search(query){
-        try {
-            const db = await connectToDB();
-            const users = await db
-                .collection("User")
-                .find({
-                    $or: [
-                        { name: { $regex: query, $options: "i" } },
-                        { username: { $regex: query, $options: "i" } },
-                    ],
-                })
-                .toArray();
-            return users;
-        } catch (error) {
-            console.log(error);
-            throw new Error("Failed to search users");
-        }
-    }
+	static async search(query) {
+		try {
+			const db = await connectToDB();
+			const users = await db
+				.collection("User")
+				.find({
+					$or: [
+						{ name: { $regex: query, $options: "i" } },
+						{ username: { $regex: query, $options: "i" } },
+					],
+				})
+				.toArray();
+
+			if (users.length === 0) {
+				throw new Error("No users found matching the query");
+			}
+
+			return users;
+		} catch (error) {
+			console.log("Error during user search:", error);
+			throw new Error("Failed to search users");
+		}
+	}
 
 	static async validatePassword(storedPassword, inputPassword) {
 		return await comparePassword(inputPassword, storedPassword);
@@ -121,6 +144,55 @@ class User {
 
 	static async generateToken(user) {
 		return signToken({ _id: user._id, username: user.username });
+	}
+
+	static async followUser(userId, followId) {
+		try {
+			const db = await connectToDB();
+			const user = await db
+				.collection("User")
+				.findOne({ _id: ObjectId(userId) });
+			const followUser = await db
+				.collection("User")
+				.findOne({ _id: ObjectId(followId) });
+
+			if (!user || !followUser) throw new Error("User not found");
+
+			const isFollowing = user.following.includes(followId);
+			const isFollower = followUser.followers.includes(userId);
+
+			if (isFollowing && isFollower) {
+				await db
+					.collection("User")
+					.updateOne(
+						{ _id: ObjectId(userId) },
+						{ $pull: { following: followId } }
+					);
+				await db
+					.collection("User")
+					.updateOne(
+						{ _id: ObjectId(followId) },
+						{ $pull: { followers: userId } }
+					);
+			} else {
+				await db
+					.collection("User")
+					.updateOne(
+						{ _id: ObjectId(userId) },
+						{ $push: { following: followId } }
+					);
+				await db
+					.collection("User")
+					.updateOne(
+						{ _id: ObjectId(followId) },
+						{ $push: { followers: userId } }
+					);
+			}
+
+			return await db.collection("User").findOne({ _id: ObjectId(userId) });
+		} catch (error) {
+			throw new Error("Failed to follow user");
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const { userTypeDefs, userResolvers } = require("./schemas/user");
 const { postTypeDefs, postResolvers } = require("./schemas/post");
+const { followTypeDefs, followResolvers } = require("./schemas/follow");
 const { connectToDB, closeConnection } = require("./config/mongodb");
 const { verifyToken } = require("./helpers/jwt");
 require("dotenv").config();
@@ -11,16 +12,19 @@ require('./config/ngrok');
 const typeDefs = `
     ${userTypeDefs}
     ${postTypeDefs}
+	${followTypeDefs}
 `;
 
 const resolvers = {
 	Query: {
 		...userResolvers.Query,
 		...postResolvers.Query,
+		...followResolvers.Query,
 	},
 	Mutation: {
 		...userResolvers.Mutation,
 		...postResolvers.Mutation,
+		...followResolvers.Mutation,
 	},
 };
 
@@ -39,7 +43,9 @@ async function startServer() {
 				return {
 					auth: () => {
 						const token = req.headers.authorization;
-						if (!token) throw new Error("Unauthorized");
+						if (!req.headers.authorization) throw new Error("Unauthorized");
+						console.log("Token:", token);
+						
 						const user = verifyToken(token);
 						return user;
 					},
